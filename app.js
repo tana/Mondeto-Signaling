@@ -5,6 +5,8 @@ const WebSocket = require('ws');
 
 const serverNodeID = 0; // Server always has node ID 0
 
+const iceServerUrl = "stun:stun.l.google.com:19302";
+
 // Use "No Server" mode to create two WebSocket servers on single HTTP server
 //  https://github.com/websockets/ws/tree/d09daaf67c282e301eeebe21797215ddffd819c5#multiple-servers-sharing-a-single-https-server
 
@@ -44,7 +46,7 @@ class Session {
     });
 
     // Server has always node ID 0
-    ws.send(JSON.stringify({ type: 'hello', nodeID: serverNodeID }));
+    ws.send(JSON.stringify({ type: 'hello', nodeID: serverNodeID, iceServerUrl: iceServerUrl }));
   }
 
   handleServerMessage(data) {
@@ -76,7 +78,7 @@ class Session {
 
     console.log(`Client ${nodeID} connected`);
 
-    ws.send(JSON.stringify({ type: 'hello', nodeID: nodeID }));
+    ws.send(JSON.stringify({ type: 'hello', nodeID: nodeID, iceServerUrl: iceServerUrl }));
 
     this.serverWS.send(JSON.stringify({ type: 'clientConnected', nodeID: nodeID }));
 

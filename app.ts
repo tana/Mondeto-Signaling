@@ -1,7 +1,5 @@
-'use strict';
-
-const http = require('http');
-const WebSocket = require('ws');
+import * as http from "http";
+import * as WebSocket from "ws";
 
 const serverNodeID = 0; // Server always has node ID 0
 
@@ -11,12 +9,18 @@ const iceServerUrl = "stun:stun.l.google.com:19302";
 //  https://github.com/websockets/ws/tree/d09daaf67c282e301eeebe21797215ddffd819c5#multiple-servers-sharing-a-single-https-server
 
 class Session {
+  wssForServer: WebSocket.Server;
+  wssForClient: WebSocket.Server;
+  serverWS: WebSocket | null;
+  clients: Map<number, WebSocket>;
+  nextNodeID: number;
+
   constructor() {
     this.wssForServer = new WebSocket.Server({ noServer: true });
     this.wssForClient = new WebSocket.Server({ noServer: true });
 
     this.serverWS = null;
-    this.clients = new Map();
+    this.clients = new Map<number, WebSocket>();
     this.nextNodeID = serverNodeID + 1; // Client node ID start from 0
   }
 
@@ -28,7 +32,7 @@ class Session {
     this.wssForClient.on('connection', this.handleClientConnection.bind(this));
   }
 
-  handleServerConnection(ws) {
+  handleServerConnection(ws: WebSocket) {
     if (this.serverWS !== null) {
       // only one server can connect
       console.log('Server is already connected!');
@@ -49,12 +53,12 @@ class Session {
     ws.send(JSON.stringify({ type: 'hello', nodeID: serverNodeID, iceServerUrl: iceServerUrl }));
   }
 
-  handleServerMessage(data) {
+  handleServerMessage(data: string) {
     console.log(`From server: ${data}`);
     try {
       const { nodeID: nodeID, ...rest } = JSON.parse(data);
       if (this.clients.has(nodeID)) {
-        this.clients.get(nodeID).send(JSON.stringify(rest));
+        this.clients.get(nodeID)?.send(JSON.stringify(rest));
       } else {
         console.log(`Client ${nodeID} not found`);
       }
@@ -63,7 +67,7 @@ class Session {
     }
   }
   
-  handleClientConnection(ws) {
+  handleClientConnection(ws: WebSocket) {
     if (this.serverWS === null) {
       // no server
       console.log('Server is not ready!');
@@ -82,14 +86,14 @@ class Session {
 
     this.serverWS.send(JSON.stringify({ type: 'clientConnected', nodeID: nodeID }));
 
-    ws.on('message', (data) => this.handleClientMessage(nodeID, data));
+    ws.on('message', (data) => this.handleClientMessage(nodeID, data.toString()));
     ws.on('close', (code, reason) => {
       this.clients.delete(nodeID);
       console.log(`Client ${nodeID} disconnected`);
     });
   }
 
-  handleClientMessage(nodeID, data) {
+  handleClientMessage(nodeID: number, data: string) {
     console.log(`From client ${nodeID}: ${data}`);
     try {
       const msg = JSON.parse(data);
@@ -97,7 +101,7 @@ class Session {
         console.log(`Warning: message from client ${nodeID} already have nodeID ${msg["nodeID"]}. Rewriting to actual nodeID.`);
       }
       msg["nodeID"] = nodeID;
-      this.serverWS.send(JSON.stringify(msg));
+      this.serverWS?.send(JSON.stringify(msg));
     } catch (e) {
       console.log(`Invalid message from client ${nodeID}: ${e}`);
     }
@@ -111,7 +115,7 @@ const pathForClient = '/client';
 
 const httpServer = new http.Server();
 
-const session = new Session(httpServer, pathForServer, pathForClient);
+const session = new Session();
 session.start();
 
 httpServer.on('upgrade', (req, sock, head) => {

@@ -14,5 +14,5 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Satoshi Tanaka",
-  "license": "TBD"
+  "license": "MIT"
 }

@@ -1,9 +1,9 @@
 import * as http from "http";
+import * as fs from "fs";
 import * as WebSocket from "ws";
+import * as yaml from "js-yaml";
 
 const serverNodeID = 0; // Server always has node ID 0
-
-const iceServerUrl = "stun:stun.l.google.com:19302";
 
 // Use "No Server" mode to create two WebSocket servers on single HTTP server
 //  https://github.com/websockets/ws/tree/d09daaf67c282e301eeebe21797215ddffd819c5#multiple-servers-sharing-a-single-https-server
@@ -15,7 +15,11 @@ class Session {
   clients: Map<number, WebSocket>;
   nextNodeID: number;
 
-  constructor() {
+  iceServerUrl: string;
+
+  constructor(iceServerUrl: string) {
+    this.iceServerUrl = iceServerUrl;
+
     this.wssForServer = new WebSocket.Server({ noServer: true });
     this.wssForClient = new WebSocket.Server({ noServer: true });
 
@@ -82,7 +86,7 @@ class Session {
 
     console.log(`Client ${nodeID} connected`);
 
-    ws.send(JSON.stringify({ type: 'hello', nodeID: nodeID, iceServerUrl: iceServerUrl }));
+    ws.send(JSON.stringify({ type: 'hello', nodeID: nodeID, iceServerUrl: this.iceServerUrl }));
 
     this.serverWS.send(JSON.stringify({ type: 'clientConnected', nodeID: nodeID }));
 
@@ -108,14 +112,19 @@ class Session {
   }
 }
 
-const host = '127.0.0.1';
-const port = 3000;
-const pathForServer = '/server';
-const pathForClient = '/client';
+// Load settings from YAML
+const configText = fs.readFileSync("config.yml", { "encoding": "utf-8" });
+const config: any = yaml.safeLoad(configText);
+// TODO: type and error check
+const host = config["host"] as string;
+const port = config["port"] as number;
+const pathForServer = config["pathForServer"] as string;
+const pathForClient = config["pathForClient"] as string;
+const iceServerUrl = config["iceServerUrl"] as string;
 
 const httpServer = new http.Server();
 
-const session = new Session();
+const session = new Session(iceServerUrl);
 session.start();
 
 httpServer.on('upgrade', (req, sock, head) => {
@@ -125,11 +134,11 @@ httpServer.on('upgrade', (req, sock, head) => {
   // Note: "connection" event have to be called manually!
   //  https://github.com/websockets/ws/tree/d09daaf67c282e301eeebe21797215ddffd819c5#multiple-servers-sharing-a-single-https-server
   // Switch by requested path (does not work with reverse proxy)
-  if (req.url === pathForServer) {
+  if (req.url === "/" + pathForServer) {
     session.wssForServer.handleUpgrade(req, sock, head, (ws) => {
       session.wssForServer.emit('connection', ws, req);
     });
-  } else if (req.url === pathForClient) {
+  } else if (req.url === "/" + pathForClient) {
     session.wssForClient.handleUpgrade(req, sock, head, (ws) => {
       session.wssForClient.emit('connection', ws, req);
     });
@@ -137,3 +146,6 @@ httpServer.on('upgrade', (req, sock, head) => {
 });
 
 httpServer.listen(port, host);
+
+console.log(`Server: ws://${host}:${port}/${pathForServer}`);
+console.log(`Client: ws://${host}:${port}/${pathForClient}`);

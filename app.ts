@@ -1,4 +1,5 @@
 import * as http from "http";
+import * as https from "https";
 import * as fs from "fs";
 import * as WebSocket from "ws";
 import * as yaml from "js-yaml";
@@ -128,8 +129,15 @@ const randomStringLength = config["randomStringLength"] as number ?? 64;
 const pathForServer = config["pathForServer"] as string ?? cryptoRandomString({length: randomStringLength, type: "alphanumeric"});
 const pathForClient = config["pathForClient"] as string ?? cryptoRandomString({length: randomStringLength, type: "alphanumeric"});
 const iceServerUrl = config["iceServerUrl"] as string;
+// HTTPS-related
+const useHttps = config["https"] as boolean ?? false;
+let httpsKey, httpsCert;
+if (useHttps) {
+  httpsKey = fs.readFileSync(config["httpsKey"] as string);
+  httpsCert = fs.readFileSync(config["httpsCert"] as string);
+}
 
-const httpServer = new http.Server();
+const httpServer = useHttps ? https.createServer({key: httpsKey, cert: httpsCert}) : http.createServer();
 
 const session = new Session(iceServerUrl);
 session.start();
@@ -154,5 +162,6 @@ httpServer.on('upgrade', (req, sock, head) => {
 
 httpServer.listen(port, host);
 
-console.log(`Server: ws://${host}:${port}/${pathForServer}`);
-console.log(`Client: ws://${host}:${port}/${pathForClient}`);
+const protocol = useHttps ? "wss" : "ws";
+console.log(`Server: ${protocol}://${host}:${port}/${pathForServer}`);
+console.log(`Client: ${protocol}://${host}:${port}/${pathForClient}`);

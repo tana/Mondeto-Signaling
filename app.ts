@@ -2,6 +2,8 @@ import * as http from "http";
 import * as fs from "fs";
 import * as WebSocket from "ws";
 import * as yaml from "js-yaml";
+import "crypto-random-string";
+import cryptoRandomString from "crypto-random-string";
 
 const serverNodeID = 0; // Server always has node ID 0
 
@@ -118,8 +120,13 @@ const config: any = yaml.safeLoad(configText);
 // TODO: type and error check
 const host = config["host"] as string;
 const port = config["port"] as number;
-const pathForServer = config["pathForServer"] as string;
-const pathForClient = config["pathForClient"] as string;
+// Use random alphanumeric string if not defined in config
+// (Using crypto-random-string https://www.npmjs.com/package/crypto-random-string )
+// Default length is 64 chars.
+// 64 * log2(62) = approx. 381 bits (62 is the number of alphanumeric chars)
+const randomStringLength = config["randomStringLength"] as number ?? 64;
+const pathForServer = config["pathForServer"] as string ?? cryptoRandomString({length: randomStringLength, type: "alphanumeric"});
+const pathForClient = config["pathForClient"] as string ?? cryptoRandomString({length: randomStringLength, type: "alphanumeric"});
 const iceServerUrl = config["iceServerUrl"] as string;
 
 const httpServer = new http.Server();
